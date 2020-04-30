@@ -1,51 +1,100 @@
-const http = require ('http');
-const {bodyParser} = require ('./lib/bodyParser')
+const http = require("http");
+const { bodyParser } = require("./lib/bodyParser");
 
-let getTaskHandler=(req, res, status, data)=>{  
-        res.writeHead(status, { "Content-Type": "application/json" })
-        res.write(JSON.stringify(data))
-        res.end();
+let getTaskHandler = (res, status, data) => {
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.write(JSON.stringify(data));
+  res.end();
 };
-let createTaskHandler= async (req, res, data)=>{ 
-    try {
+
+let createTaskHandler = async (req, res, data) => {
+  try {
+    await bodyParser(req);
+    data.push(req.body);
+    getTaskHandler(res, 200, data);
+  } catch (error) {
+    getTaskHandler(res, 400, { "Invalid data": error.message });
+  }
+};
+
+let editTaskHandler = async (req, res, data, method) => {
+  let { url } = req;
+  let idQuery = url.split("?")[1];
+  let idKey = idQuery.split("=")[0];
+  let idValue = idQuery.split("=")[1];
+  if (idKey === "id" && idValue === url.idValue) {
+    switch (method) {
+      case "put":
         await bodyParser(req);
-        data.push(req.body);
-        getTaskHandler(req, res, 200, data);
-    } catch (error) {
-        getTaskHandler(req, res, 404, {error: "Invalid data"});
-    }   
+        data[idValue - 1] = req.body;
+        getTaskHandler(res, 200, { message: "Update successfully" });
+        break;
+      case "delete":
+        await bodyParser(req);
+        data.splice(idValue - 1, 1);
+        getTaskHandler(res, 200, { message: "Deleted successfully" });
+        break;
+
+      default:
+        getTaskHandler(res, 400, { message: "Invalid Query" });
+        break;
+    }
+  }else{
+    getTaskHandler(res, 400, { message: "Invalid Query" });
+  }  
 };
 
-let database= [];
+let updateTaskHandler = async (req, res, data) => {
+  try {
+    editTaskHandler(req, res, data, "put");
+  } catch (error) {
+    editTaskHandler(req, res, { "Invalid body data": error.message }, "put");
+  }
+};
 
-const server = http.createServer((req, res)=>{
-    const {url, method} = req;
+let deleteTaskHandler = async (req, res, data) => {
+  try {
+    editTaskHandler(req, res, data, "delete");
+  } catch (error) {
+    editTaskHandler(req, res, { "Invalid body data": error.message }, "delete");
+  }
+};
 
-    //Logger
-    console.log(`URL: ${url} - Method: ${method}`);
+let database = [];
 
-    
-    // res.writeHead(200, { "Content-Type": "application/json" });
-    // res.write(JSON.stringify({ message: "Hello"}));
-    // res.end();
-    switch(method){
-        case "GET":
-            if (url === "/") {
-                getTaskHandler(req, res, 200, {message:"hello"});
-            }
-            if (url === "/tasks") {
-                getTaskHandler(req, res, 200, database);
-            }
-            break;
+const server = http.createServer((req, res) => {
+  const { url, method } = req;
 
-        case "POST":
-            if (url === "/tasks") {
-                createTaskHandler(req, res, database);
-            }
-            break;
-    }
+  //Logger
+  console.log(`URL: ${url} - Method: ${method}`);
+
+  switch (method) {
+    case "GET":
+      if (url === "/") {
+        getTaskHandler(res, 200, { message: "hello" });
+      }
+      if (url === "/tasks") {
+        getTaskHandler(res, 200, database);
+      }
+      break;
+
+    case "POST":
+      if (url === "/tasks") {
+        createTaskHandler(req, res, database);
+      }
+      break;
+
+    case "PUT":
+      updateTaskHandler(req, res, database);
+      break;
+
+    case "DELETE":
+      deleteTaskHandler(req, res, database);
+      break;
+
+    default:
+      getTaskHandler(res, 404, { message: "404 Not Found" });
+  }
 });
 server.listen(3000);
-console.log('Server on port', 3000);
-
-
+console.log("Server on port", 3000);
